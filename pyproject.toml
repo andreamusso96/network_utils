@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "network_utils"
-version = "0.1.0"
+version = "0.2.0"
 authors = [{name = "Andrea Musso"}]
 requires-python = ">=3.7"
 dependencies = []

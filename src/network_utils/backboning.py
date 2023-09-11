@@ -70,7 +70,6 @@ class BackBoneResult:
 def get_network_backbone(g: gt.Graph, method: BackBoneMethod, **kwargs) -> BackBoneResult:
     assert 'id' in g.vp, 'Graph does not have node ids'
     assert 'weight' in g.ep, 'Graph does not have edge weights'
-    assert g.is_directed() is False, 'Graph is directed'
 
     if method == BackBoneMethod.NO:
         backbone_g = g
@@ -95,7 +94,7 @@ def disparity_edge_filter(g: gt.Graph, alpha: float = 0.05) -> gt.Graph:
     adjacency_filtered_graph = p_values_edges < alpha
     weighted_adjacency_filtered_graph = np.multiply(weighted_adjacency_graph, adjacency_filtered_graph)
     filtered_graph = _get_filtered_graph_from_weighted_adjacency_filtered_graph(weighted_adjacency_filtered_graph=weighted_adjacency_filtered_graph, vertex_ids=np.array(g.vp['id'].a),
-                                                                                filter_name='disparity')
+                                                                                filter_name='disparity', directed=g.is_directed())
     return filtered_graph
 
 
@@ -116,7 +115,7 @@ def spanning_tree_edge_filter(g: gt.Graph, n_neighbors: int = 4) -> gt.Graph:
     weighted_adjacency_graph = gt.adjacency(g, weight=g.ep['weight']).toarray().astype(float)
     weighted_adjacency_filtered_graph = np.multiply(weighted_adjacency_graph, adjacency_edges_to_keep)
     filtered_graph = _get_filtered_graph_from_weighted_adjacency_filtered_graph(weighted_adjacency_filtered_graph=weighted_adjacency_filtered_graph, vertex_ids=np.array(g.vp['id'].a),
-                                                                                filter_name='spanning_tree')
+                                                                                filter_name='spanning_tree', directed=g.is_directed())
     return filtered_graph
 
 
@@ -127,12 +126,16 @@ def nearest_neighbor_edge_filter(g: gt.Graph, n_neighbors: int = 5) -> gt.Graph:
     mask[np.arange(mask.shape[0])[:, None], indices_nearest_neighbors] = True
     weighted_adjacency_filtered_graph = np.where(mask, weighted_adjacency_graph, 0)
     filtered_graph = _get_filtered_graph_from_weighted_adjacency_filtered_graph(weighted_adjacency_filtered_graph=weighted_adjacency_filtered_graph, vertex_ids=np.array(g.vp['id'].a),
-                                                                                filter_name='nearest_neighbor')
+                                                                                filter_name='nearest_neighbor', directed=g.is_directed())
     return filtered_graph
 
 
-def _get_filtered_graph_from_weighted_adjacency_filtered_graph(weighted_adjacency_filtered_graph: np.ndarray, vertex_ids: np.ndarray, filter_name: str):
+def _get_filtered_graph_from_weighted_adjacency_filtered_graph(weighted_adjacency_filtered_graph: np.ndarray, vertex_ids: np.ndarray, filter_name: str, directed: bool) -> gt.Graph:
     weighted_adjacency_filtered_graph = pd.DataFrame(weighted_adjacency_filtered_graph, index=vertex_ids, columns=vertex_ids)
-    filtered_graph = adjacency.weighted_graph_from_weight_matrix(weight_matrix=weighted_adjacency_filtered_graph)
+    if directed:
+        filtered_graph = adjacency.directed_weighted_graph_from_weight_matrix(weight_matrix=weighted_adjacency_filtered_graph)
+    else:
+        filtered_graph = adjacency.undirected_weighted_graph_from_weight_matrix(weight_matrix=weighted_adjacency_filtered_graph)
+
     filtered_graph.gp['filter'] = filtered_graph.new_graph_property(value_type="string", val=filter_name)
     return filtered_graph

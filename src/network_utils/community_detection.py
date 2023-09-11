@@ -34,20 +34,23 @@ class CommunityDetectionResult:
     def __init__(self, g: gt.Graph, community_map: Dict[int, int], algorithm: str):
         self.g = g
         self.algorithm = algorithm
-        self.community_map = community_map
+        self.vertex_id_to_community_id_map = community_map
+        self.community_id_to_vertex_ids_map = {community: np.array([vertex_id for vertex_id, community_id in self.vertex_id_to_community_id_map.items() if community_id == community]) for community in self.get_community_ids()}
 
     def get_vertex_ids_community(self, community: int) -> np.ndarray:
-        return np.array([vertex_id for vertex_id, community_id in self.community_map.items() if community_id == community])
+        return self.community_id_to_vertex_ids_map[community]
 
     def get_community_ids(self) -> np.ndarray:
-        return np.unique(sorted(list(self.community_map.values())))
+        return np.unique(sorted(list(self.vertex_id_to_community_id_map.values())))
 
     def get_community_id_vertex(self, vertex_id: int) -> int:
-        return self.community_map[vertex_id]
+        return self.vertex_id_to_community_id_map[vertex_id]
 
-    def plot_block_matrix(self, show: bool = True) -> go.Figure:
+    def plot_block_matrix(self, show: bool = True, threshold_community_size: int = 5) -> go.Figure:
         block_matrix = self.get_block_matrix()
-        fig = go.Figure(data=go.Heatmap(z=block_matrix.values, x=block_matrix.columns, y=block_matrix.index))
+        communities_with_size_above_threshold = [community for community in self.get_community_ids() if len(self.get_vertex_ids_community(community)) > threshold_community_size]
+        block_matrix = block_matrix.loc[communities_with_size_above_threshold, communities_with_size_above_threshold]
+        fig = go.Figure(data=go.Heatmap(z=block_matrix.values, x=[str(a) for a in block_matrix.columns], y=[str(a) for a in block_matrix.index]))
         fig.update_layout(template='plotly_white', title_text="Block matrices")
         if show:
             fig.show(renderer="browser")
@@ -56,12 +59,39 @@ class CommunityDetectionResult:
             return fig
 
     def get_block_matrix(self) -> pd.DataFrame:
-        adjacency_matrix = pd.DataFrame(gt.adjacency(self.g, weight=self.g.ep.weight).toarray(), index=np.array(self.g.vp.id.a), columns=np.array(self.g.vp.id.a))
-        melted_adjacency_matrix = adjacency_matrix.reset_index(names='source').melt(id_vars='source', var_name='target', value_name='weight', ignore_index=True)
-        melted_adjacency_matrix['source_community'] = melted_adjacency_matrix['source'].apply(lambda x: self.community_map[x])
-        melted_adjacency_matrix['target_community'] = melted_adjacency_matrix['target'].apply(lambda x: self.community_map[x])
-        block_matrix = melted_adjacency_matrix.groupby(['source_community', 'target_community'])['weight'].sum().unstack().fillna(0)
+        edge_list_with_weights = [(self.g.vp.id[e.source()], self.g.vp.id[e.target()], self.g.ep.weight[e]) for e in self.g.edges()]
+        edge_list_with_weights = pd.DataFrame(edge_list_with_weights, columns=['source', 'target', 'weight'])
+        edge_list_with_weights['source_community'] = edge_list_with_weights['source'].apply(lambda x: self.vertex_id_to_community_id_map[x])
+        edge_list_with_weights['target_community'] = edge_list_with_weights['target'].apply(lambda x: self.vertex_id_to_community_id_map[x])
+        block_matrix = edge_list_with_weights.groupby(['source_community', 'target_community'])['weight'].sum().unstack().fillna(0)
         return block_matrix
+
+    def get_clustered_adjacency(self, threshold_community_size: int = 130):
+        adjacency_matrix = pd.DataFrame(gt.adjacency(self.g, weight=self.g.ep.weight).toarray(), index=np.array(self.g.vp.id.a), columns=np.array(self.g.vp.id.a))
+        vertex_ids_communities = np.concatenate([self.get_vertex_ids_community(community) for community in self.get_community_ids() if len(self.get_vertex_ids_community(community)) > threshold_community_size])
+        adjacency_matrix = adjacency_matrix.loc[vertex_ids_communities, vertex_ids_communities]
+        return adjacency_matrix
+
+    def plot_summary_table(self):
+        number_of_communities = len(self.get_community_ids())
+        community_sizes = [len(self.get_vertex_ids_community(community)) for community in self.get_community_ids()]
+        size_largest_community = np.max(community_sizes)
+        share_largest_community = size_largest_community / self.g.num_vertices()
+        size_10_largest_communities = ", ".join([str(a) for a in np.sort(community_sizes)[::-1][:10]])
+        number_of_communities_with_one_node = np.where(np.array(community_sizes) == 1, 1, 0).sum()
+        number_of_communities_with_more_than_one_node = number_of_communities - number_of_communities_with_one_node
+        table = go.Figure(data=[go.Table(
+            header=dict(values=['', self.algorithm],
+                        line_color='darkslategray',
+                        fill_color='lightskyblue',
+                        align='left'),
+            cells=dict(values=[['Number of communities', 'Number of communities with one node', 'Number of communities with more than one node', 'Size of largest community', 'Share of largest community', 'Size of 10 largest communities'],
+                               [number_of_communities, number_of_communities_with_one_node, number_of_communities_with_more_than_one_node, size_largest_community, np.round(share_largest_community, decimals=3), size_10_largest_communities]],
+                       line_color='darkslategray',
+                       fill_color='lightcyan',
+                       align='left'))
+        ])
+        table.show(renderer='browser')
 
 
 class HierarchicalCommunityDetectionResult:
