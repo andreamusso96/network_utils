@@ -12,8 +12,6 @@ from . import adjacency
 class BackBoneMethod(Enum):
     NO = 'no_filter'
     DISPARITY = 'disparity'
-    SPANNING = 'spanning'
-    NEIGHBOUR = 'neighbour'
 
 
 class BackBoneResult:
@@ -75,10 +73,6 @@ def get_network_backbone(g: gt.Graph, method: BackBoneMethod, **kwargs) -> BackB
         backbone_g = g
     elif method == BackBoneMethod.DISPARITY:
         backbone_g = disparity_edge_filter(g=g, **kwargs)
-    elif method == BackBoneMethod.SPANNING:
-        backbone_g = spanning_tree_edge_filter(g=g, **kwargs)
-    elif method == BackBoneMethod.NEIGHBOUR:
-        backbone_g = nearest_neighbor_edge_filter(g=g, **kwargs)
     else:
         raise ValueError(f'Unknown backbone method {method}')
 
@@ -87,10 +81,9 @@ def get_network_backbone(g: gt.Graph, method: BackBoneMethod, **kwargs) -> BackB
 
 def disparity_edge_filter(g: gt.Graph, alpha: float = 0.05) -> gt.Graph:
     weighted_adjacency_graph = gt.adjacency(g, weight=g.ep['weight']).toarray().astype(float)
-    node_strengths = weighted_adjacency_graph.sum(axis=1)
-    normalized_adjacency_graph = np.divide(weighted_adjacency_graph, node_strengths, out=np.zeros_like(weighted_adjacency_graph), where=node_strengths != 0)
-    degrees = (weighted_adjacency_graph > 0).sum(axis=1)
-    p_values_edges = np.power(1 - normalized_adjacency_graph, degrees)
+    p_values_in_edges = _compute_pvalues_edges(weighted_adjacency_graph=weighted_adjacency_graph)
+    p_values_out_edges = _compute_pvalues_edges(weighted_adjacency_graph=weighted_adjacency_graph.T)
+    p_values_edges = np.maximum(p_values_in_edges, p_values_out_edges)
     adjacency_filtered_graph = p_values_edges < alpha
     weighted_adjacency_filtered_graph = np.multiply(weighted_adjacency_graph, adjacency_filtered_graph)
     filtered_graph = _get_filtered_graph_from_weighted_adjacency_filtered_graph(weighted_adjacency_filtered_graph=weighted_adjacency_filtered_graph, vertex_ids=np.array(g.vp['id'].a),
@@ -98,36 +91,13 @@ def disparity_edge_filter(g: gt.Graph, alpha: float = 0.05) -> gt.Graph:
     return filtered_graph
 
 
-def spanning_tree_edge_filter(g: gt.Graph, n_neighbors: int = 4) -> gt.Graph:
-    weights_np = np.array(g.ep['weight'].a)
-
-    inverse_weights = g.new_edge_property("double", vals=np.divide(1, weights_np, out=np.inf * np.ones_like(weights_np), where=weights_np != 0))
-    max_spanning_tree = gt.min_spanning_tree(g, weights=inverse_weights)
-
-    n_edges_to_keep = n_neighbors * g.num_vertices()
-    n_edges = g.num_edges()
-    quantile_to_keep = 1 - n_edges_to_keep / n_edges
-    quantile_value = np.quantile(weights_np, quantile_to_keep)
-    edges_to_keep = (weights_np >= quantile_value) | np.array(max_spanning_tree.a).astype(bool)
-    edges_to_keep_ep = g.new_edge_property("bool", vals=edges_to_keep)
-
-    adjacency_edges_to_keep = gt.adjacency(g, weight=edges_to_keep_ep).toarray().astype(float)
-    weighted_adjacency_graph = gt.adjacency(g, weight=g.ep['weight']).toarray().astype(float)
-    weighted_adjacency_filtered_graph = np.multiply(weighted_adjacency_graph, adjacency_edges_to_keep)
-    filtered_graph = _get_filtered_graph_from_weighted_adjacency_filtered_graph(weighted_adjacency_filtered_graph=weighted_adjacency_filtered_graph, vertex_ids=np.array(g.vp['id'].a),
-                                                                                filter_name='spanning_tree', directed=g.is_directed())
-    return filtered_graph
-
-
-def nearest_neighbor_edge_filter(g: gt.Graph, n_neighbors: int = 5) -> gt.Graph:
-    weighted_adjacency_graph = gt.adjacency(g, weight=g.ep['weight']).toarray().astype(float)
-    indices_nearest_neighbors = np.argsort(weighted_adjacency_graph, axis=1)[:, -n_neighbors:]
-    mask = np.zeros_like(weighted_adjacency_graph).astype(bool)
-    mask[np.arange(mask.shape[0])[:, None], indices_nearest_neighbors] = True
-    weighted_adjacency_filtered_graph = np.where(mask, weighted_adjacency_graph, 0)
-    filtered_graph = _get_filtered_graph_from_weighted_adjacency_filtered_graph(weighted_adjacency_filtered_graph=weighted_adjacency_filtered_graph, vertex_ids=np.array(g.vp['id'].a),
-                                                                                filter_name='nearest_neighbor', directed=g.is_directed())
-    return filtered_graph
+def _compute_pvalues_edges(weighted_adjacency_graph: np.ndarray):
+    node_strengths = weighted_adjacency_graph.sum(axis=1).reshape(-1, 1)
+    normalized_adjacency_graph = np.divide(weighted_adjacency_graph, node_strengths, out=np.zeros_like(weighted_adjacency_graph), where=node_strengths != 0)
+    degrees = (weighted_adjacency_graph > 0).sum(axis=1)
+    degrees_min_one = degrees - 1
+    p_values_edges = np.power(1 - normalized_adjacency_graph, degrees_min_one, out=np.zeros_like(weighted_adjacency_graph), where=degrees_min_one > 0)
+    return p_values_edges
 
 
 def _get_filtered_graph_from_weighted_adjacency_filtered_graph(weighted_adjacency_filtered_graph: np.ndarray, vertex_ids: np.ndarray, filter_name: str, directed: bool) -> gt.Graph:

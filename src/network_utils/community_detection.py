@@ -66,7 +66,7 @@ class CommunityDetectionResult:
         block_matrix = edge_list_with_weights.groupby(['source_community', 'target_community'])['weight'].sum().unstack().fillna(0)
         return block_matrix
 
-    def get_clustered_adjacency(self, threshold_community_size: int = 130):
+    def get_clustered_adjacency(self, threshold_community_size: int = 10):
         adjacency_matrix = pd.DataFrame(gt.adjacency(self.g, weight=self.g.ep.weight).toarray(), index=np.array(self.g.vp.id.a), columns=np.array(self.g.vp.id.a))
         vertex_ids_communities = np.concatenate([self.get_vertex_ids_community(community) for community in self.get_community_ids() if len(self.get_vertex_ids_community(community)) > threshold_community_size])
         adjacency_matrix = adjacency_matrix.loc[vertex_ids_communities, vertex_ids_communities]
@@ -199,6 +199,7 @@ def label_propagation(g: gt.Graph):
 
 
 def fluid(g: gt.Graph, n_communities: int):
+    assert g.is_directed() is False, 'Fluid community detection does not support directed graphs'
     return _apply_networkx_community_detection_algorithm(g=g, algorithm=nx.algorithms.community.asyn_fluidc, algorithm_name=Algorithm.FLUID.value, k=n_communities)
 
 
@@ -211,6 +212,7 @@ def _apply_networkx_community_detection_algorithm(g: gt.Graph, algorithm: Callab
 
 
 def hdbscan(g: gt.Graph, min_samples: int = 5, **kwargs):
+    assert g.is_directed() is False, 'HDBSCAN does not support directed graphs'
     weighted_adjacency = gt.adjacency(g, weight=g.ep['weight']).toarray().astype(float)
     inverse_weighted_adjacency = np.divide(1, weighted_adjacency, out=np.inf * np.ones_like(weighted_adjacency), where=weighted_adjacency != 0)
     clusters = HDBSCAN(min_cluster_size=min_samples, min_samples=min_samples, metric="precomputed", n_jobs=-1, **kwargs).fit(inverse_weighted_adjacency)

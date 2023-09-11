@@ -18,6 +18,7 @@ def _build_graph(weight_matrix: pd.DataFrame, vertex_ids: np.ndarray, directed: 
     mask = weight_matrix.values.nonzero()
     weights = weight_matrix.values[mask]
     g = gt.Graph(directed=directed)
+    g.add_vertex(n=len(vertex_ids))
     g.add_edge_list(np.transpose(mask))
     g.ep['weight'] = g.new_edge_property("double", vals=weights)
     g.vp['id'] = g.new_vertex_property("int", vals=vertex_ids)

@@ -6,9 +6,13 @@ import numpy as np
 
 def gt_to_nx(g: gt.Graph) -> nx.Graph:
     assert 'weight' in g.ep, 'Graph does not have edge weights'
+    if g.is_directed():
+        weighted_adjacency = gt.adjacency(g, weight=g.ep['weight']).toarray().T
+        nx_graph = nx.from_numpy_array(weighted_adjacency, create_using=nx.DiGraph)
+    else:
+        weighted_adjacency = gt.adjacency(g, weight=g.ep['weight']).toarray()
+        nx_graph = nx.from_numpy_array(weighted_adjacency).to_undirected()
 
-    weighted_adjacency = gt.adjacency(g, weight=g.ep['weight']).toarray()
-    nx_graph = nx.from_numpy_array(weighted_adjacency).to_undirected()
     _set_node_attributes(g, nx_graph)
     _set_edge_attributed(g, nx_graph)
     _set_graph_attributes(g, nx_graph)
