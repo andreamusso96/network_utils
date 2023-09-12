@@ -206,7 +206,8 @@ def fluid(g: gt.Graph, n_communities: int):
 def _apply_networkx_community_detection_algorithm(g: gt.Graph, algorithm: Callable, algorithm_name: str, **kwargs):
     nx_graph = gt_to_nx(g=g)
     comm = algorithm(nx_graph, **kwargs)
-    com_map = {nx.get_node_attributes(nx_graph, name='id')[v]: i for i, c in enumerate(comm) for v in c}
+    vertex_ids = nx.get_node_attributes(nx_graph, name='id')
+    com_map = {vertex_ids[v]: i for i, c in enumerate(comm) for v in c}
     result = CommunityDetectionResult(g=g, community_map=com_map, algorithm=algorithm_name)
     return result
 

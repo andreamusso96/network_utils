@@ -7,7 +7,7 @@ import numpy as np
 def gt_to_nx(g: gt.Graph) -> nx.Graph:
     assert 'weight' in g.ep, 'Graph does not have edge weights'
     if g.is_directed():
-        weighted_adjacency = gt.adjacency(g, weight=g.ep['weight']).toarray().T
+        weighted_adjacency = gt.adjacency(g, weight=g.ep['weight']).toarray().T # graph tool views entry i,j as an edge j -> i while networkx views it as an edge i -> j
         nx_graph = nx.from_numpy_array(weighted_adjacency, create_using=nx.DiGraph)
     else:
         weighted_adjacency = gt.adjacency(g, weight=g.ep['weight']).toarray()

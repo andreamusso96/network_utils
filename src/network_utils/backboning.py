@@ -83,7 +83,7 @@ def disparity_edge_filter(g: gt.Graph, alpha: float = 0.05) -> gt.Graph:
     weighted_adjacency_graph = gt.adjacency(g, weight=g.ep['weight']).toarray().astype(float)
     p_values_in_edges = _compute_pvalues_edges(weighted_adjacency_graph=weighted_adjacency_graph)
     p_values_out_edges = _compute_pvalues_edges(weighted_adjacency_graph=weighted_adjacency_graph.T)
-    p_values_edges = np.maximum(p_values_in_edges, p_values_out_edges)
+    p_values_edges = np.minimum(p_values_in_edges, p_values_out_edges)
     adjacency_filtered_graph = p_values_edges < alpha
     weighted_adjacency_filtered_graph = np.multiply(weighted_adjacency_graph, adjacency_filtered_graph)
     filtered_graph = _get_filtered_graph_from_weighted_adjacency_filtered_graph(weighted_adjacency_filtered_graph=weighted_adjacency_filtered_graph, vertex_ids=np.array(g.vp['id'].a),
@@ -96,7 +96,7 @@ def _compute_pvalues_edges(weighted_adjacency_graph: np.ndarray):
     normalized_adjacency_graph = np.divide(weighted_adjacency_graph, node_strengths, out=np.zeros_like(weighted_adjacency_graph), where=node_strengths != 0)
     degrees = (weighted_adjacency_graph > 0).sum(axis=1)
     degrees_min_one = degrees - 1
-    p_values_edges = np.power(1 - normalized_adjacency_graph, degrees_min_one, out=np.zeros_like(weighted_adjacency_graph), where=degrees_min_one > 0)
+    p_values_edges = np.power(1 - normalized_adjacency_graph, degrees_min_one, out=np.ones_like(weighted_adjacency_graph), where=degrees_min_one > 0)
     return p_values_edges
 
 
