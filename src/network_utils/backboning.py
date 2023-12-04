@@ -12,6 +12,7 @@ from . import adjacency
 class BackBoneMethod(Enum):
     NO = 'no_filter'
     DISPARITY = 'disparity'
+    MAXIMUM_SPANNING_TREE = 'maximum_spanning_tree'
 
 
 class BackBoneResult:
@@ -73,6 +74,8 @@ def get_network_backbone(g: gt.Graph, method: BackBoneMethod, **kwargs) -> BackB
         backbone_g = g
     elif method == BackBoneMethod.DISPARITY:
         backbone_g = disparity_edge_filter(g=g, **kwargs)
+    elif method == BackBoneMethod.MAXIMUM_SPANNING_TREE:
+        backbone_g = maximum_spanning_tree_edge_filter(g=g)
     else:
         raise ValueError(f'Unknown backbone method {method}')
 
@@ -90,6 +93,12 @@ def disparity_edge_filter(g: gt.Graph, alpha: float = 0.05) -> gt.Graph:
                                                                                 filter_name='disparity', directed=g.is_directed())
     return filtered_graph
 
+
+def maximum_spanning_tree_edge_filter(g: gt.Graph) -> gt.Graph:
+    maximum_spanning_tree = gt.min_spanning_tree(g, weights=g.new_edge_property('double', vals=-1*g.ep['weight'].a))
+    filtered_graph = gt.Graph(gt.GraphView(g, efilt=maximum_spanning_tree), prune=True)
+    filtered_graph.gp['filter'] = filtered_graph.new_graph_property(value_type="string", val='maximum_spanning_tree')
+    return filtered_graph
 
 def _compute_pvalues_edges(weighted_adjacency_graph: np.ndarray):
     node_strengths = weighted_adjacency_graph.sum(axis=1).reshape(-1, 1)

@@ -4,12 +4,17 @@ import graph_tool.all as gt
 
 
 def undirected_weighted_graph_from_weight_matrix(weight_matrix: pd.DataFrame) -> gt.Graph:
-    symmetric_weight_matrix = (weight_matrix + weight_matrix.T) / 2
+    symmetric_weight_matrix = weight_matrix + weight_matrix.T
     g = _build_graph(weight_matrix=symmetric_weight_matrix, vertex_ids=weight_matrix.index, directed=False)
     return g
 
 
 def directed_weighted_graph_from_weight_matrix(weight_matrix: pd.DataFrame) -> gt.Graph:
+    """
+    Build a directed graph from a weight matrix. The entry i,j of the weight matrix is the weight of the edge i -> j.
+    :param weight_matrix: a pandas DataFrame with the weights. The index and columns are the vertex ids.
+    :return: a graph-tool directed graph where the weight of edge i -> j equals to value of the entry i,j of the weight matrix.
+    """
     g = _build_graph(weight_matrix=weight_matrix, vertex_ids=weight_matrix.index, directed=True)
     return g
 

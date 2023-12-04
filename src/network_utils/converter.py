@@ -1,20 +1,45 @@
+from typing import Union
+from enum import Enum
+
 import networkx as nx
 import graph_tool.all as gt
+import igraph as ig
 import pandas as pd
 import numpy as np
+
+
+class GraphType(Enum):
+    NX = 'nx'
+    GT = 'gt'
+    IG = 'ig'
+
+
+def convert_graph(g: Union[nx.Graph, gt.Graph, ig.Graph], type_from: GraphType, type_to: GraphType) -> Union[nx.Graph, gt.Graph, ig.Graph]:
+    if type_from == GraphType.NX and type_to == GraphType.GT:
+        return nx_to_gt(g)
+    elif type_from == GraphType.GT and type_to == GraphType.NX:
+        return gt_to_nx(g)
+    elif type_from == GraphType.GT and type_to == GraphType.IG:
+        return gt_to_ig(g)
+    else:
+        raise ValueError(f'Conversion from {type_from.value} to {type_to.value} not supported')
+
+
+def gt_to_ig(g: gt.Graph) -> ig.Graph:
+    return ig.Graph.from_graph_tool(g)
 
 
 def gt_to_nx(g: gt.Graph) -> nx.Graph:
     assert 'weight' in g.ep, 'Graph does not have edge weights'
     if g.is_directed():
-        weighted_adjacency = gt.adjacency(g, weight=g.ep['weight']).toarray().T # graph tool views entry i,j as an edge j -> i while networkx views it as an edge i -> j
+        weighted_adjacency = gt.adjacency(g, weight=g.ep['weight']).toarray().T  # graph tool views entry i,j as an edge j -> i while networkx views it as an edge i -> j
         nx_graph = nx.from_numpy_array(weighted_adjacency, create_using=nx.DiGraph)
     else:
         weighted_adjacency = gt.adjacency(g, weight=g.ep['weight']).toarray()
-        nx_graph = nx.from_numpy_array(weighted_adjacency).to_undirected()
+        nx_graph = nx.from_numpy_array(weighted_adjacency, create_using=nx.Graph)
 
     _set_node_attributes(g, nx_graph)
-    _set_edge_attributed(g, nx_graph)
+    _set_edge_attributes(g, nx_graph)
     _set_graph_attributes(g, nx_graph)
     return nx_graph
 
@@ -24,7 +49,7 @@ def _set_node_attributes(gGt: gt.Graph, gNx: nx.Graph):
         nx.set_node_attributes(G=gNx, values={int(v): gGt.vp[prop][v] for v in gGt.vertices()}, name=prop)
 
 
-def _set_edge_attributed(gGt: gt.Graph, gNx: nx.Graph):
+def _set_edge_attributes(gGt: gt.Graph, gNx: nx.Graph):
     for prop in gGt.ep:
         nx.set_edge_attributes(G=gNx, values={(int(e.source()), int(e.target())): gGt.ep[prop][e] for e in gGt.edges()}, name=prop)
 
