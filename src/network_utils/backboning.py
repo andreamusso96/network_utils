@@ -17,21 +17,24 @@ class BackBoneMethod(Enum):
 class BackBoneResult:
     def __init__(self, g: nx.Graph, backbone_g: nx.Graph, method: BackBoneMethod, kwargs: Dict[str, Any] = None):
         self.g = g
-        self.adjacency_g = pd.DataFrame(nx.adjacency_matrix(g, weight='weight').toarray(), index=g.nodes, columns=g.nodes)
+        self.adjacency_g = pd.DataFrame(nx.adjacency_matrix(g, weight='weight').toarray(), index=list(g.nodes), columns=list(g.nodes))
         self.backbone_g = backbone_g
-        self.backbone_adjacency_g = pd.DataFrame(nx.adjacency_matrix(backbone_g, weight='weight').toarray(), index=backbone_g.nodes, columns=backbone_g.nodes)
+        self.backbone_adjacency_g = pd.DataFrame(nx.adjacency_matrix(backbone_g, weight='weight').toarray(), index=list(backbone_g.nodes), columns=list(backbone_g.nodes))
         self.method = method
         self.kwargs = kwargs
 
     def plot_summary_table(self):
-        total_weight_original_graph = np.sum(self.adjacency_g)
-        total_weight_backbone_graph = np.sum(self.backbone_adjacency_g)
+        total_weight_original_graph = np.sum(self.adjacency_g.values)
+        total_weight_backbone_graph = np.sum(self.backbone_adjacency_g.values)
 
         total_edges_original_graph = self.g.number_of_edges()
         total_edges_backbone_graph = self.backbone_g.number_of_edges()
 
         total_node_connected_components_original_graph = self.g.number_of_nodes()
-        total_node_connected_components_backbone_graph = np.max([len(a) for a in nx.connected_components(self.backbone_g)])
+        if nx.is_directed(self.backbone_g):
+            total_node_connected_components_backbone_graph = np.max([len(a) for a in nx.weakly_connected_components(self.backbone_g)])
+        else:
+            total_node_connected_components_backbone_graph = np.max([len(a) for a in nx.connected_components(self.backbone_g)])
 
         average_degree_original_graph = total_edges_original_graph / total_node_connected_components_original_graph
         average_degree_backbone_graph = total_edges_backbone_graph / total_node_connected_components_backbone_graph
@@ -94,8 +97,9 @@ def disparity_edge_filter(g: nx.Graph, alpha: float = 0.05) -> nx.Graph:
     p_values_edges = np.minimum(p_values_in_edges, p_values_out_edges)
     adjacency_filtered_graph = p_values_edges < alpha
     weighted_adjacency_filtered_graph = np.multiply(weighted_adjacency_graph, adjacency_filtered_graph)
-    filtered_graph = nx.from_pandas_adjacency(pd.DataFrame(weighted_adjacency_filtered_graph, index=g.nodes, columns=g.nodes), create_using=type(g))
+    filtered_graph = nx.from_pandas_adjacency(pd.DataFrame(weighted_adjacency_filtered_graph, index=list(g.nodes), columns=list(g.nodes)), create_using=type(g))
     return filtered_graph
+
 
 def _compute_pvalues_edges(weighted_adjacency_graph: np.ndarray) -> np.ndarray:
     node_strengths = weighted_adjacency_graph.sum(axis=1).reshape(-1, 1)
