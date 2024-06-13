@@ -2,10 +2,23 @@ from typing import Union
 from enum import Enum
 
 import networkx as nx
-import graph_tool.all as gt
-import igraph as ig
 import pandas as pd
 import numpy as np
+
+# Attempt to import optional dependencies
+try:
+    import graph_tool.all as gt
+    HAS_GRAPH_TOOL = True
+except ImportError:
+    gt = None
+    HAS_GRAPH_TOOL = False
+
+try:
+    import igraph as ig
+    HAS_IGRAPH = True
+except ImportError:
+    ig = None
+    HAS_IGRAPH = False
 
 
 class GraphType(Enum):
@@ -16,10 +29,16 @@ class GraphType(Enum):
 
 def convert_graph(g: Union[nx.Graph, gt.Graph, ig.Graph], type_from: GraphType, type_to: GraphType) -> Union[nx.Graph, gt.Graph, ig.Graph]:
     if type_from == GraphType.NX and type_to == GraphType.GT:
+        if not HAS_GRAPH_TOOL:
+            raise ImportError("graph_tool is not available")
         return nx_to_gt(g)
     elif type_from == GraphType.GT and type_to == GraphType.NX:
+        if not HAS_GRAPH_TOOL:
+            raise ImportError("graph_tool is not available")
         return gt_to_nx(g)
     elif type_from == GraphType.GT and type_to == GraphType.IG:
+        if not HAS_GRAPH_TOOL or not HAS_IGRAPH:
+            raise ImportError("graph_tool and/or igraph is not available")
         return gt_to_ig(g)
     else:
         raise ValueError(f'Conversion from {type_from.value} to {type_to.value} not supported')
@@ -96,3 +115,4 @@ def _get_prop_type(dtype):
         return 'bool'
     else:
         return 'string'
+
