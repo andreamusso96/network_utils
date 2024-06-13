@@ -11,7 +11,6 @@ class BackBoneMethod(Enum):
     NO = 'no_filter'
     DISPARITY = 'disparity'
     MAXIMUM_SPANNING_TREE = 'maximum_spanning_tree'
-    DISPARITY_AND_MAXIMUM_SPANNING_TREE = 'disparity_and_maximum_spanning_tree'
 
 
 class BackBoneResult:
@@ -19,13 +18,13 @@ class BackBoneResult:
         self.g = g
         self.adjacency_g = pd.DataFrame(nx.adjacency_matrix(g, weight='weight').toarray(), index=list(g.nodes), columns=list(g.nodes))
         self.backbone_g = backbone_g
-        self.backbone_adjacency_g = pd.DataFrame(nx.adjacency_matrix(backbone_g, weight='weight').toarray(), index=list(backbone_g.nodes), columns=list(backbone_g.nodes))
+        self.adjacency_backbone_g = pd.DataFrame(nx.adjacency_matrix(backbone_g, weight='weight').toarray(), index=list(backbone_g.nodes), columns=list(backbone_g.nodes))
         self.method = method
         self.kwargs = kwargs
 
     def plot_summary_table(self):
         total_weight_original_graph = np.sum(self.adjacency_g.values)
-        total_weight_backbone_graph = np.sum(self.backbone_adjacency_g.values)
+        total_weight_backbone_graph = np.sum(self.adjacency_backbone_g.values)
 
         total_edges_original_graph = self.g.number_of_edges()
         total_edges_backbone_graph = self.backbone_g.number_of_edges()
@@ -84,6 +83,8 @@ def _get_network_backbone_from_graph(g: nx.Graph, method: BackBoneMethod, **kwar
         backbone_g = g
     elif method == BackBoneMethod.DISPARITY:
         backbone_g = disparity_edge_filter(g=g, **kwargs)
+    elif method == BackBoneMethod.MAXIMUM_SPANNING_TREE:
+        backbone_g = maximum_spanning_tree_edge_filter(g=g)
     else:
         raise ValueError(f'Unknown backbone method {method}')
 
@@ -108,3 +109,8 @@ def _compute_pvalues_edges(weighted_adjacency_graph: np.ndarray) -> np.ndarray:
     degrees_min_one = degrees - 1
     p_values_edges = np.power(1 - normalized_adjacency_graph, degrees_min_one, out=np.ones_like(weighted_adjacency_graph), where=degrees_min_one > 0)
     return p_values_edges
+
+def maximum_spanning_tree_edge_filter(g: nx.Graph) -> nx.Graph:
+    assert not nx.is_directed(g), 'Maximum spanning tree is only defined for undirected graphs'
+    mst = nx.maximum_spanning_tree(g, weight='weight')
+    return mst
